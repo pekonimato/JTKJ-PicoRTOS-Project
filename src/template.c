@@ -47,7 +47,7 @@ void sensor_task(void *pvParameters) {
             tässä me asetetaan tila laitteen asennon mukaan. jos laite on vaakassa asetetaan
             tilaksi VIIVA. jos laite on pystyssä asetetaan tilaksi PISTE.
             jossakin meillä on keskeytyskäsittelijä joka lukee napin ja heittää meidät merkinlähetys
-            taskiin. siellä me tallennetaan tilaa 
+            taskiin. siellä me tallennetaan tilaa vastaava merkki jonnekin.
             */
 
         }
