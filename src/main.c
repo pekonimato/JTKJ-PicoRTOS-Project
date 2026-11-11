@@ -27,7 +27,7 @@ static void nabit(uint gpio, uint32_t eventMask){
     }
     
 }
-
+ 
 
 void init_buttons(){
     //nappi1
