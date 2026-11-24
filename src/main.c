@@ -31,8 +31,6 @@ const char TABLE_SIZE = sizeof(Morse_Table)/sizeof(Morse_Table[0]);
 
 void interaction(int button);
 
-bool valid_letter(char string[]);
-
 char morse_to_letter(char mstring[]);
 
 void letter_to_morse(char mletter, char result[]);
@@ -131,7 +129,7 @@ void morse_string_task(void *pvParameters){
             }
             latest_symbol = 0;
         }
-        
+
        vTaskDelay(pdMS_TO_TICKS(500));
     }
 
