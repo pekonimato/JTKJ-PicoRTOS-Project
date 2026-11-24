@@ -10,10 +10,12 @@
 
 volatile int button_pressed = 0;
 volatile char latest_symbol = 0;
+
 const struct Morse_Pair {
     char letter;
     char morse[6];    
 }Morse_Table[] = {
+    {' ', "\0"},
     {'A', ".-"},   {'B', "-..."}, {'C', "-.-."}, {'D', "-.."},
     {'E', "."},    {'F', "..-."}, {'G', "--."},  {'H', "...."},
     {'I', ".."},   {'J', ".---"}, {'K', "-.-"},  {'L', ".-.."},
@@ -31,9 +33,11 @@ void interaction(int button);
 
 bool valid_letter(char string[]);
 
-char morse_to_letter();
+char morse_to_letter(char mstring[]);
 
-void letter_to_morse();
+void letter_to_morse(char mletter, char result[]);
+
+void decode_morse_string(const char *morse_in, char *plaintext_out);
 
 void buttons(uint gpio, uint32_t eventMask){
     //asettaa napin tilan
@@ -63,7 +67,7 @@ void sensor_task(void *pvParameters){
             button_pressed = 0;
         }
 
-        vTaskDelay(pdMS_TO_TICKS(200));
+        vTaskDelay(pdMS_TO_TICKS(500));
     }
 }
 
@@ -73,41 +77,62 @@ void morse_string_task(void *pvParameters){
     */
 
     //morse merkkien jono
-    char morse_letter[5] = ""; //morsetettu kirjain jonka halutaan tarkistaa
-    char morse_string[128] = ""; //lista johon morsekirjain lisätään tarkistuksen jälkeen
+    char morse_letter[6] = ""; //morsetettu kirjain joka halutaan tarkistaa
+    char morse_string[255] = ""; //lista johon morsekirjain lisätään tarkistuksen jälkeen
     
-    //muutuja jolla seurataan viimeisimmän merkin indeksiä
-    int morse_string_indx = 0;
-    int letter_indx = 0;
-    int string_indx = 0;
+    //muuttuja jolla seurataan viimeisimmän merkin indeksiä
+    char string_index = 0;
+    //morsekirjaimen viimeisen merkin indeksi. käytetään merkkien lisäämiseen ja pituuden tarkistamiseen
+    char temp_index = 0;
+
 
     while(1){
+
+        //jos saadaan uusi merkki, aloitetaan tarkistukset
         if(latest_symbol){
-            if(latest_symbol != " "){
-                if(letter_indx < 5){
-                    morse_letter[letter_indx] = latest_symbol;
-                    letter_indx ++;
-                }
-            } else if(latest_symbol = " "){
-                if(morse_to_letter(morse_letter)){
-                    for(int i = 0; i < sizeof(morse_letter); i++){
-                        morse_string[morse_string_indx] = morse_letter[i];
-                    }
-                    
+
+            //kerätään merkkejä väliaikaiseen kirjaimen morsejonoon jos saatu merkki on piste tai viiva
+            if(latest_symbol == '.' || latest_symbol == '-'){
+                if (temp_index < 5){
+                    morse_letter[temp_index] = latest_symbol;
+                 temp_index ++;
+                } else{
+                    morse_letter[0] = '\0';
+                    temp_index = 0;
+                    printf("too long\n");
                 } 
+            } 
+            
+            //jos saadaan välimerkki tarkistetaan saatu morsekirjain ja lisätään se oikeaan merkkijonoon.
+            else if(latest_symbol == ' '){
+                //asettaa morsekirjaimen viimesen merkin että jono luetaan oikein ja nollaa morsekirjaimen indeksilaskurin
+                morse_letter[temp_index] = '\0';
+                temp_index = 0;
+
+                if(morse_to_letter(morse_letter)){
+                    int i = 0;
+                    while(morse_letter[i] != '\0'){
+                        morse_string[string_index] = morse_letter[i];
+                        i++, string_index++;
+                    }
+                    morse_string[string_index] = ' ';
+                    string_index++;
+                    printf("%s\n", morse_string);
+                    char st[255];
+                    decode_morse_string(morse_string, st);
+                    printf("%s\n", st);
+
+                } 
+                else{
+                    printf("character invalid\n");
+                }
+                morse_letter[0] = '\0';
+
             }
-        }
-
-
-        /*
-        if(latest_symbol){
-            morse_string[last_indx] = latest_symbol;
-            string_indx ++;
-            printf("morse jono tähän asti: %s\n", morse_string);
             latest_symbol = 0;
         }
-        vTaskDelay(pdMS_TO_TICKS(200));
-        */
+        
+       vTaskDelay(pdMS_TO_TICKS(500));
     }
 
 
@@ -146,6 +171,43 @@ void letter_to_morse(char mletter, char result[]){
         }
     }
     strcpy(result, "\0");
+}
+
+
+
+//GEMININ TEKEMÄ TESTIFUNKTIO!!!
+void decode_morse_string(const char *morse_in, char *plaintext_out) {
+    char buffer[16]; // Max standard Morse character length is well under 16
+    size_t buf_idx = 0;
+    size_t out_idx = 0;
+
+    for (size_t i = 0; morse_in[i] != '\0'; i++) {
+        if (morse_in[i] == '.' || morse_in[i] == '-') {
+            // Collect dots and dashes for the current letter
+            if (buf_idx < sizeof(buffer) - 1) {
+                buffer[buf_idx++] = morse_in[i];
+            }
+        } else if (morse_in[i] == ' ') {
+            if (buf_idx > 0) {
+                // First space after dots/dashes ends the letter
+                buffer[buf_idx] = '\0';
+                plaintext_out[out_idx++] = morse_to_letter(buffer);
+                buf_idx = 0;
+            } else {
+                // Subsequent space (or leading space) adds a space to plaintext
+                plaintext_out[out_idx++] = ' ';
+            }
+        }
+    }
+
+    // Handle the final letter if the input doesn't end with a space
+    if (buf_idx > 0) {
+        buffer[buf_idx] = '\0';
+        plaintext_out[out_idx++] = morse_to_letter(buffer);
+    }
+
+    // Null-terminate the output string
+    plaintext_out[out_idx] = '\0';
 }
 
 
