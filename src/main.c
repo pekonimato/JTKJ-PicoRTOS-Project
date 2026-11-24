@@ -10,13 +10,22 @@
 
 volatile int button_pressed = 0;
 volatile char latest_symbol = 0;
-const char morse_table[62] = {
-                  'E',                                    'T',
-        'I',                'A',                 'N',               'M',
-  'S',       'U',      'R',      'W',       'D',      'K',     'G',      'O',
-'H', 'V', 'F', ' ', 'L', '\0', 'P', 'J', 'B', 'X', 'C', 'Y', 'Z', 'Q', ' ', '\0',
-'5','4','\0','3','\0','\0','\0','2','\0','\0','\0','\0','\0','\0','\0','1','6','\0','\0','\0','\0','\0','\0','\0','7','\0','\0','\0','8','\0','9','0'
+const struct Morse_Pair {
+    char letter;
+    char morse[6];    
+}Morse_Table[] = {
+    {'A', ".-"},   {'B', "-..."}, {'C', "-.-."}, {'D', "-.."},
+    {'E', "."},    {'F', "..-."}, {'G', "--."},  {'H', "...."},
+    {'I', ".."},   {'J', ".---"}, {'K', "-.-"},  {'L', ".-.."},
+    {'M', "--"},   {'N', "-."},   {'O', "---"},  {'P', ".--."},
+    {'Q', "--.-"}, {'R', ".-."},  {'S', "..."},  {'T', "-"},
+    {'U', "..-"},  {'V', "...-"}, {'W', ".--"},  {'X', "-..-"},
+    {'Y', "-.--"}, {'Z', "--.."},
+    {'0', "-----"}, {'1', ".----"}, {'2', "..---"}, {'3', "...--"}, {'4', "....-"}, 
+    {'5', "....."}, {'6', "-...."}, {'7', "--..."}, {'8', "---.."}, {'9', "----."}
 };
+
+const char TABLE_SIZE = sizeof(Morse_Table)/sizeof(Morse_Table[0]);
 
 void interaction(int button);
 
@@ -24,7 +33,7 @@ bool valid_letter(char string[]);
 
 char morse_to_letter();
 
-char letter_to_morse();
+void letter_to_morse();
 
 void buttons(uint gpio, uint32_t eventMask){
     //asettaa napin tilan
@@ -119,43 +128,24 @@ void interaction(int button){
 }
 
 char morse_to_letter(char mstring[]){
-
-    int index = 0;
-    char length = strlen(mstring);
-
-    if(length > 5 || length == 0){
-        printf("morse string invalid \n");
-        return '\0';
-    }
-
-    for (int i = 0; i < length; i++) {
-        if (mstring[i] == '.') {
-            index = 2 * index + 1;
-        } 
-        else if (mstring[i] == '-') {
-            index = 2 * index + 2;
-        } 
-        else{
-            return '\0';
+    //finds the character of a morse string by going through the morse table and comparing the morse string with valid character morse strings.
+    for(int i = 0; i < TABLE_SIZE; i++){
+        if(strcmp(Morse_Table[i].morse, mstring) == 0){
+            return Morse_Table[i].letter;
         }
     }
-
-    printf("index: %d\n", index);
-
-    return morse_table[index - 1];
+    return '\0';
 }
 
-char letter_to_morse(char letter){
-
-    int index;
-    for(int i = 0; i < sizeof(morse_table); i++){
-        if(letter == morse_table[i]){
-            index = i;
+void letter_to_morse(char mletter, char result[]){
+    //finds the morse string for a character from the morse table
+    for(int i = 0; i < TABLE_SIZE; i++){
+        if(Morse_Table[i].letter == mletter){
+            strcpy(result, Morse_Table[i].morse);
+            return;
         }
     }
-
-    
-
+    strcpy(result, "\0");
 }
 
 
