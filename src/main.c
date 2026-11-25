@@ -109,9 +109,12 @@ void morse_string_task(void *pvParameters){
 
                 if(morse_to_letter(morse_letter)){
                     int i = 0;
+                    clear_display();
+
                     while(morse_letter[i] != '\0'){
                         morse_string[string_index] = morse_letter[i];
                         i++, string_index++;
+                        
                     }
                     morse_string[string_index] = ' ';
                     string_index++;
@@ -119,10 +122,13 @@ void morse_string_task(void *pvParameters){
                     char st[255];
                     decode_morse_string(morse_string, st);
                     printf("%s\n", st);
+                    write_text(st);
+
 
                 } 
                 else{
                     printf("character invalid\n");
+                    buzzer_play_tone(2, 500);
                 }
                 morse_letter[0] = '\0';
 
@@ -223,6 +229,12 @@ int main(){
     gpio_set_irq_enabled_with_callback(SW1_PIN, GPIO_IRQ_EDGE_FALL, true, buttons);
     init_sw2();
     gpio_set_irq_enabled_with_callback(SW2_PIN, GPIO_IRQ_EDGE_FALL, true, buttons);
+
+    init_display();
+
+    init_buzzer();
+
+    write_text("i am a apple");
 
     if(init_ICM42670() == 0) {
         printf("jeps, icm starttas oikeesti hienosti eikä mitään ongelmia jee jee\n");
