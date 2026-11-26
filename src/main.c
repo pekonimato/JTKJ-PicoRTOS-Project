@@ -69,21 +69,16 @@ void sensor_task(void *pvParameters){
                 ICM42670_read_sensor_data(NULL, &ay, NULL, NULL, NULL, NULL, NULL);
                 if(ay < 0){
                     latest_symbol = '.';
-                    printf("__dot\n__");
-                    buzzer_play_tone(1000, 100);
+                    printf("__dot__");
                 } else{
                     latest_symbol = '-';
-                    printf("__dash\n__");
-                    buzzer_play_tone(1000, 300);
+                    printf("__dash__");
                 }
             } 
             
             else{                             //jos painettu nappi on 2
                 latest_symbol = ' ';
-                printf("__space\n__");
-                buzzer_play_tone(1000, 50);
-                sleep_ms(50);
-                buzzer_play_tone(1000, 50);
+                printf("__space__");
             }
 
         }
@@ -113,10 +108,15 @@ void morse_string_task(void *pvParameters){
             if(latest_symbol == '.' || latest_symbol == '-'){
                 if (letter_len < 5){
                     morse_letter[letter_len++] = latest_symbol;
+                    if(latest_symbol == '.'){
+                        buzzer_play_tone(1000, 100);
+                    } else{
+                        buzzer_play_tone(1000, 200);
+                    }
 
                 } else{ //jos saadaan yli 5 merkkiä ilman välilyöntiä, kirjain on liian pitkä ja aloitetaan uuden morsekirjaimen keruu.
                     letter_len = 0;
-                    printf("__too long\n__");
+                    printf("__too long__");
                     buzzer_play_tone(1000, 500);
                 }
                 morse_letter[letter_len] = '\0';        //Lisää tyhjän merkin morsekirjaimen loppuun.
@@ -124,7 +124,6 @@ void morse_string_task(void *pvParameters){
             
             //jos saadaan välimerkki tarkistetaan kerätyn kirjaimen laillisuus ja lisätään se morsejonoon jos se on laillinen.
             else if(latest_symbol == ' '){
-
                 if(morse_to_letter(morse_letter)){      //jos morsekirjain on laillinen, lisataan sen merkit morsejonoon.
                     int i = 0;
                     while(morse_letter[i] != '\0'){
@@ -134,13 +133,18 @@ void morse_string_task(void *pvParameters){
                     morse_string[string_len++] = ' ';   //merkin jalkeen tulee aina valilyonti.
                     global.msg[string_len] = '\0';    //lisaa tyhjan merkin morsejonon loppuun.
 
+                    
+
                     demorse(morse_string, plaintext);
-                    printf("__%s, %s\n__", morse_string, plaintext);
                     write_text_xy(0,56, plaintext);
+
+                    buzzer_play_tone(1000, 50);
+                    sleep_ms(50);
+                    buzzer_play_tone(1000, 50);
 
                 } else{
 
-                    printf("__Invalid morse character: %s\n__", morse_letter);
+                    printf("__Invalid morse character: %s__", morse_letter);
                     buzzer_play_tone(1000, 500);
                 }
                 morse_letter[0] = '\0';
@@ -153,7 +157,7 @@ void morse_string_task(void *pvParameters){
                     morse_string[string_len] = '\0';
 
                     demorse(morse_string, plaintext);
-                    printf("%s", morse_string);
+                    printf(morse_string);
 
                     buzzer_play_tone(1000, 600);
                     clear_display();
