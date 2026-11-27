@@ -3,8 +3,16 @@
 #include <pico/stdlib.h>
 #include <FreeRTOS.h>
 #include <task.h>
+#include <queue.h>
 #include "tkjhat/sdk.h"
 #define DEFAULT_STACK_SIZE 2048
+
+typedef enum {
+IDLE,
+COMPOSING,
+RECEIVING,
+PLAYBACK
+} SystemState;
 
 const struct Morse_Pair {
     char letter;
@@ -26,7 +34,9 @@ const char TABLE_SIZE = sizeof(Morse_Table)/sizeof(Morse_Table[0]);
 
 volatile int button_pressed = 0;
 volatile char latest_symbol = '\0';
+QueueHandle_t symbol_queue;
 
+/*
 struct DisplayInfo {
     char plaintext[128];
     char msg[512];
@@ -36,7 +46,7 @@ struct DisplayInfo {
 
     bool refresh;
 } global = {0};
-
+*/
 
 void buttons(uint gpio, uint32_t eventMask);
 
@@ -44,13 +54,11 @@ char morse_to_letter(char mstring[]);
 
 void letter_to_morse(char mletter, char result[]);
 
-void demorse(char *morse, char *text);
-
-void display_message(char *line1, char *line2, char *line3);
+bool demorse(char *morse, char *text);
 
 void display_morse_table();
 
-void display_text(char *list[]);
+void play_morse(char *morse);
 
 void buttons(uint gpio, uint32_t eventMask){
     //asettaa napin tilan
@@ -65,13 +73,17 @@ void sensor_task(void *pvParameters){
         if(button_pressed){ //jos jotain nappia on painettu
 
             if(button_pressed == SW1_PIN){      //jos pinettu nappi on 1
+
+                char symbol = '\0';
                 float ay;
                 ICM42670_read_sensor_data(NULL, &ay, NULL, NULL, NULL, NULL, NULL);
                 if(ay < 0){
                     latest_symbol = '.';
+                    //xQueueSend(symbol_queue, '.', 0);
                     printf("__dot__");
                 } else{
                     latest_symbol = '-';
+                    //xQueueSend(symbol_queue, '-', 0);
                     printf("__dash__");
                 }
             } 
@@ -92,13 +104,13 @@ void morse_string_task(void *pvParameters){
     Taski joka lisää merkin morsejonoon ja tarvittaessa lähettää.
     */
 
-    char *morse_letter = global.letter; //morsetettu kirjain morsemerkkeina.
+    char morse_letter[6] ; //morsetettu kirjain morsemerkkeina.
     char letter_len = 0;                //morsekirjaimen pituus. käytetään merkkien lisäämiseen ja pituuden tarkistamiseen
 
-    char *morse_string = global.msg;    //lista johon morsekirjain lisätään tarkistuksen jälkeen
+    char morse_string[512];    //lista johon morsekirjain lisätään tarkistuksen jälkeen
     int string_len = 0;                 //muuttuja jolla seurataan viimeisimmän merkin indeksiä
     
-    char *plaintext = global.plaintext;
+    char plaintext[256];
 
     while(1){
 
@@ -131,7 +143,7 @@ void morse_string_task(void *pvParameters){
                     }
 
                     morse_string[string_len++] = ' ';   //merkin jalkeen tulee aina valilyonti.
-                    global.msg[string_len] = '\0';    //lisaa tyhjan merkin morsejonon loppuun.
+                    morse_string[string_len] = '\0';    //lisää tyhjän merkin morsejonon loppuun että jono luetaan oikein.
 
                     
 
@@ -139,7 +151,7 @@ void morse_string_task(void *pvParameters){
                     write_text_xy(0,56, plaintext);
 
                     buzzer_play_tone(1000, 50);
-                    sleep_ms(50);
+                    vTaskDelay(pdMS_TO_TICKS(50));
                     buzzer_play_tone(1000, 50);
 
                 } else{
@@ -163,15 +175,16 @@ void morse_string_task(void *pvParameters){
                     clear_display();
                     write_text_xy(0 ,0, "Message sent!");
                     write_text(plaintext);
-                    
+                    vTaskDelay(pdMS_TO_TICKS(1000));
+                    play_morse(morse_string);
+                    vTaskDelay(pdMS_TO_TICKS(1000));
+
                     //nollataan kaikki muuttujat viestin lahetyksen jalkeen 
                     string_len = 0;
                     morse_string[string_len] = '\0';
                     letter_len = 0;
                     morse_letter[letter_len] = '\0';
                     plaintext[0] = '\0';
-                    
-                    sleep_ms(2000);
                     display_morse_table();
                 };
                 letter_len = 0;
@@ -204,35 +217,41 @@ void letter_to_morse(char mletter, char result[]){
 }
 
 
-void demorse(char *morse, char *text){
+bool demorse(char *morse, char *text){
 
-    char letter[6];
+    char letter[8];
     int morse_index = 0;
     int text_index = 0;
+    bool valid = true;
 
-    while(morse[morse_index] != '\0'){
+    while(morse[morse_index] != '\0' && morse[morse_index] != '\n'){
         char i = 0;
-        while(morse[morse_index] != ' ' && morse[morse_index] != '\0' && i < 5){
+        while(morse[morse_index] != ' ' && morse[morse_index] != '\n' && morse[morse_index] != '\0'){
+            if(i < 7){
             letter[i++] = morse[morse_index++];
+            }
         }
         letter[i] = '\0';
 
         if(letter[0]){
-            if(letter[0] != '\n'){
-                text[text_index++] = morse_to_letter(letter);
-            } else{ 
-                text[text_index++] = '\n';
+            char plain_letter = morse_to_letter(letter);
+            if(plain_letter){
+                text[text_index++] = plain_letter;
+            } else{ // jos kirjain ei ole laillinen korvataan se kysymysmerkillä ja asetetaan laillisuus vääräksi
+                text[text_index++] = '?';
+                valid = false;
             }
         } else if(morse[morse_index] == ' '){
             text[text_index++] = ' ';
         }
-
-        if (morse[morse_index] == ' ') {
+        if(morse[morse_index] == ' '){
             morse_index++;
         }
+        
     }
-
+    text[text_index++] = '\n';
     text[text_index] = '\0';
+    return valid;
 }
 
 void display_morse_table(){
@@ -245,25 +264,32 @@ void display_morse_table(){
     "u..- v...- w.-- x-..-",
     "y-.-- z--..", NULL
     };
-    display_text(table);
+    clear_display();
+    int y = 0;
+    for(int i = 0; table[i]; i++){
+        write_text_xy(0, y, table[i]);
+        y += 7;
+    }
     
 }
 
-void display_text(char *list[]){
-
-    clear_display();
-    int y = 0;
-    for(int i = 0; list[i]; i++){
-        write_text_xy(0, y, list[i]);
-        y += 7;
+void play_morse(char *morse){
+    for(int i = 0; morse[i] != '\0'; i++){
+        char x = morse[i];
+        if(x == '.'){
+            buzzer_play_tone(1000, 100);
+            vTaskDelay(pdMS_TO_TICKS(50));
+        } else if(x == '-'){
+            buzzer_play_tone(1000, 200);
+            vTaskDelay(pdMS_TO_TICKS(50));
+        }else if(x == ' '){
+            vTaskDelay(pdMS_TO_TICKS(200));
+        }      
     }
 }
 
 int main(){
     stdio_init_all();
-    //while (!stdio_usb_connected()){
-    //    sleep_ms(10);
-    //} 
     init_hat_sdk();
     sleep_ms(300);
 
@@ -274,16 +300,12 @@ int main(){
     gpio_set_irq_enabled_with_callback(SW2_PIN, GPIO_IRQ_EDGE_FALL, true, buttons);
 
     init_display();
-
     init_buzzer();
-
-    display_morse_table();
-
-    if(init_ICM42670() == 0) {
-        printf("__jeps, icm starttas oikeesti hienosti eikä mitään ongelmia jee jee\n__");
-    }
+    init_ICM42670();
 
     ICM42670_start_with_default_values();
+
+    display_morse_table();
 
     TaskHandle_t myTaskHandle1 = NULL;
     TaskHandle_t myTaskHandle2 = NULL;
