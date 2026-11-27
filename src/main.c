@@ -268,7 +268,8 @@ void display_morse_table(){
     "m--  n-.   o--- p.--.",
     "q-.- r.-.  s... t-",
     "u..- v...- w.-- x-..-",
-    "y-.-- z--..", NULL
+    "    y-.--   z--..",
+     NULL
     };
     clear_display();
     int y = 0;
