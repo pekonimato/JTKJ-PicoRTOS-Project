@@ -174,7 +174,13 @@ void morse_string_task(void *pvParameters){
                     buzzer_play_tone(1000, 600);
                     clear_display();
                     write_text_xy(0 ,0, "Message sent!");
-                    write_text(plaintext);
+
+                    if(strlen(plaintext) < 14){//jos teksti on alle 12 merkkiä kirjoitetaan isolla
+                        write_text(plaintext);  
+                    } else{
+                        write_text_xy(0, 32, plaintext);
+                    }
+                    
                     vTaskDelay(pdMS_TO_TICKS(1000));
                     play_morse(morse_string);
                     vTaskDelay(pdMS_TO_TICKS(1000));
@@ -191,7 +197,7 @@ void morse_string_task(void *pvParameters){
             }
             latest_symbol = '\0';
         }
-       vTaskDelay(pdMS_TO_TICKS(150));
+       vTaskDelay(pdMS_TO_TICKS(100));
     }
 }
 
